@@ -1,3 +1,4 @@
+from base64 import b32encode, b32decode
 import os
 
 from flask import Flask, g, make_response, render_template, request, session, url_for
@@ -73,6 +74,7 @@ class ServerEndpoint(MethodView):
             csrf_token = session['csrf_token']
         except KeyError:
             csrf_token = session['csrf_token'] = os.urandom(24)
+        csrf_token = b32encode(csrf_token)
         return render_template('decide.html', openid_request=openid_request, csrf_token=csrf_token)
 
 
@@ -83,6 +85,10 @@ app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
 def allow():
     oir_args = dict(urlparse.parse_qsl(request.form['request_args']))
     openid_request = Message.fromPostArgs(oir_args)
+
+    csrf_token = request.form['token']
+    if b32decode(csrf_token) != session.get('csrf_token'):
+        raise ValueError("HOGAD CSRF TOKENS DO NOT MATCH")
 
     if 'yes' not in request.form:
         return openid_to_flask_response(openid_request.answer(False))
