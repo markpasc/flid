@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, make_response, render_template, request, url_for
+from flask import Flask, g, make_response, render_template, request, session, url_for
 from flask.views import MethodView
 import openid
 from openid.server.server import Server, ProtocolError
@@ -10,6 +10,7 @@ import psycopg2
 
 class DefaultSettings(object):
     DEBUG = True
+    DSN = 'dbname=flid'
 
 default_settings = DefaultSettings()
 
@@ -20,12 +21,26 @@ if 'FLID_SETTINGS' in os.environ:
     app.config.from_envvar('FLID_SETTINGS')
 
 
-class OpenIDServer(MethodView):
+@app.before_request
+def before_request():
+    g.db_conn = psycopg2.connect(app.config['DSN'])
+    store = PostgreSQLStore(g.db_conn)
+    g.server = Server(store, url_for('.server', _external=True))
 
-    def __init__(self):
-        conn = psycopg2.connect(database='flid')
-        store = PostgreSQLStore(conn)
-        self.server = Server(store, url_for('.server', _external=True))
+@app.teardown_request
+def teardown_request(exc):
+    g.server = None
+    g.db_conn.close()
+
+def openid_to_flask_response(response):
+    webr = g.server.encodeResponse(response)  # raises server.EncodingError
+    resp = make_response(webr.body, webr.code)
+    for header, value in webr.headers.iteritems():
+        resp.headers[header] = value
+    return resp
+
+
+class ServerEndpoint(MethodView):
 
     def get(self):
         return self.server_endpoint(request.args)
@@ -35,22 +50,39 @@ class OpenIDServer(MethodView):
 
     def server_endpoint(self, query):
         try:
-            request = self.server.decodeRequest(query)
+            openid_request = g.server.decodeRequest(query)
         except ProtocolError, exc:
-            return self.openid_response(exc)
+            return openid_to_flask_response(exc)
 
-        if request is None:
+        if openid_request is None:
             return render_template('about.html')
 
-    def openid_response(self, response):
-        webr = self.server.encodeResponse(response)  # raises server.EncodingError
-        resp = make_response(webr.body, webr.code)
-        for header, value in webr.headers.iteritems():
-            resp.headers[header] = value
-        return resp
+        if openid_request.mode in ('checkid_immediate', 'checkid_setup'):
+            return self.checkid_response(openid_request)
+
+        resp = g.server.handleRequest(openid_request)
+        return openid_to_flask_response(resp)
+
+    def checkid_response(self, openid_request):
+        # TODO: let through previously trusted trust roots.
+        # For now, no one is ever previously authorized.
+        if request.immediate:
+            return openid_to_flask_response(openid_request.answer(False))
+
+        try:
+            csrf_token = session['csrf_token']
+        except KeyError:
+            csrf_token = session['csrf_token'] = os.urandom(24)
+        return render_template('decide.html', openid_request=openid_request, csrf_token=csrf_token)
 
 
-app.add_url_rule('/server', view_func=OpenIDServer.as_view('server'))
+app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
+
+
+@app.route('/allow', methods=('POST',))
+def allow():
+    if 'yes' not in request.form:
+        return openid_to_flask_response(request.answer(False))
 
 
 @app.route('/')

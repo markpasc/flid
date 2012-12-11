@@ -1,0 +1,14 @@
+{% if request.idSelect() %}
+    <p>The site <strong>{{ request.trust_root }}</strong> wonders who you are.</p>
+{% else %}
+    <p>The site <strong>{{ request.trust_root }}</strong> wants to confirm you are <strong>{{ request.identity }}</strong>.</p>
+{% end %}
+
+<form method="post" action="{{ url_for('allow') }}">
+    <input type="hidden" name="token" value="{{ csrf_token }}">
+    {% if request.idSelect() %}
+    <p><label>Identifier <input name="identifier"></label></p>
+    {% end %}
+    <p><input type="submit" name="yes" value="Allow"></p>
+    <p><input type="submit" name="no" value="Cancel"></p>
+</form>
