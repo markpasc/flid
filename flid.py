@@ -1,5 +1,7 @@
 from base64 import b32encode, b32decode
 import os
+from urllib import urlencode
+import urlparse
 
 from flask import Flask, g, make_response, render_template, request, session, url_for
 from flask.views import MethodView
@@ -58,13 +60,10 @@ class ServerEndpoint(MethodView):
         if openid_request is None:
             return render_template('about.html')
 
-        if openid_request.mode in ('checkid_immediate', 'checkid_setup'):
-            return self.checkid_response(openid_request)
+        if openid_request.mode not in ('checkid_immediate', 'checkid_setup'):
+            resp = g.server.handleRequest(openid_request)
+            return openid_to_flask_response(resp)
 
-        resp = g.server.handleRequest(openid_request)
-        return openid_to_flask_response(resp)
-
-    def checkid_response(self, openid_request):
         # TODO: let through previously trusted trust roots.
         # For now, no one is ever previously authorized.
         if openid_request.immediate:
@@ -75,7 +74,8 @@ class ServerEndpoint(MethodView):
         except KeyError:
             csrf_token = session['csrf_token'] = os.urandom(24)
         csrf_token = b32encode(csrf_token)
-        return render_template('decide.html', openid_request=openid_request, csrf_token=csrf_token)
+        return render_template('decide.html', openid_request=openid_request,
+            request_args=urlencode(query), csrf_token=csrf_token)
 
 
 app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
@@ -84,7 +84,7 @@ app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
 @app.route('/allow', methods=('POST',))
 def allow():
     oir_args = dict(urlparse.parse_qsl(request.form['request_args']))
-    openid_request = Message.fromPostArgs(oir_args)
+    openid_request = g.server.decodeRequest(oir_args)
 
     csrf_token = request.form['token']
     if b32decode(csrf_token) != session.get('csrf_token'):
