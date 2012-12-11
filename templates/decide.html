@@ -7,7 +7,7 @@
 <form method="post" action="{{ url_for('allow') }}">
     <input type="hidden" name="token" value="{{ csrf_token }}">
     <input type="hidden" name="request_args" value="{{ request_args }}">
-    {% if request.idSelect() %}
+    {% if openid_request.idSelect() %}
     <p><label>Identifier <input name="identifier"></label></p>
     {% endif %}
     <p><input type="submit" name="yes" value="Allow"></p>
