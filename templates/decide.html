@@ -1,11 +1,12 @@
-{% if request.idSelect() %}
-    <p>The site <strong>{{ request.trust_root }}</strong> wonders who you are.</p>
+{% if openid_request.idSelect() %}
+    <p>The site <strong>{{ openid_request.trust_root }}</strong> wonders who you are.</p>
 {% else %}
-    <p>The site <strong>{{ request.trust_root }}</strong> wants to confirm you are <strong>{{ request.identity }}</strong>.</p>
+    <p>The site <strong>{{ openid_request.trust_root }}</strong> wants to confirm you are <strong>{{ openid_request.identity }}</strong>.</p>
 {% end %}
 
 <form method="post" action="{{ url_for('allow') }}">
     <input type="hidden" name="token" value="{{ csrf_token }}">
+    <input type="hidden" name="request_args" value="{{ openid_request.toURLEncoded() }}">
     {% if request.idSelect() %}
     <p><label>Identifier <input name="identifier"></label></p>
     {% end %}

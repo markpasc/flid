@@ -81,8 +81,18 @@ app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
 
 @app.route('/allow', methods=('POST',))
 def allow():
+    oir_args = dict(urlparse.parse_qsl(request.form['request_args']))
+    openid_request = Message.fromPostArgs(oir_args)
+
     if 'yes' not in request.form:
-        return openid_to_flask_response(request.answer(False))
+        return openid_to_flask_response(openid_request.answer(False))
+
+    if openid_request.idSelect():
+        identity = url_for('.ident', _external=True)
+    else:
+        identity = openid_request.identity
+    resp = openid_request.answer(True, identity)
+    return openid_to_flask_response(resp)
 
 
 @app.route('/')
