@@ -66,7 +66,7 @@ class ServerEndpoint(MethodView):
     def checkid_response(self, openid_request):
         # TODO: let through previously trusted trust roots.
         # For now, no one is ever previously authorized.
-        if request.immediate:
+        if openid_request.immediate:
             return openid_to_flask_response(openid_request.answer(False))
 
         try:
