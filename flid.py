@@ -92,20 +92,20 @@ class ServerEndpoint(MethodView):
         return indirect_response(request.args, error="Unknown openid.mode provided")
 
     def checkid(self):
-        assoc_handle = self.args.get('openid.assoc_handle')
+        assoc_handle = request.args.get('openid.assoc_handle')
         if assoc_handle is None:
             return indirect_response(request.args, error="No association handle given and stateless mode is not supported :(")
 
-        realm = self.args.get('openid.realm') or self.args.get('openid.return_to')
+        realm = request.args.get('openid.realm') or request.args.get('openid.return_to')
         if realm is None:
             return indirect_response(request.args, error="No realm provided")
 
         try:
-            claimed_id = self.args['openid.claimed_id']
+            claimed_id = request.args['openid.claimed_id']
         except KeyError:
             return indirect_response(request.args, error="No claimed ID provided")
         try:
-            identity = self.args['openid.identity']
+            identity = request.args['openid.identity']
         except KeyError:
             return indirect_response(request.args, error="No local identifier (openid.identity) provided")
         if identity == 'http://specs.openid.net/auth/2.0/identifier_select':
