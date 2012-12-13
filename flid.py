@@ -226,7 +226,7 @@ class ServerEndpoint(MethodView):
             return direct_response(is_valid='false')
 
         cur = g.db_conn.cursor()
-        cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND private IS TRUE AND expires <= %s",
+        cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND private IS TRUE AND %s < expires",
             (assoc_handle, datetime.utcnow()))
         result = cur.fetchone()
         if result is None:
@@ -293,7 +293,7 @@ def allow():
         pass  # make one up
     else:
         cur = g.db_conn.cursor()
-        cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND private IS FALSE AND expires <= %s",
+        cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND private IS FALSE AND %s < expires",
             (assoc_handle, datetime.utcnow()))
         result = cur.fetchone()
         if result is None:
