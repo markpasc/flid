@@ -220,7 +220,7 @@ class ServerEndpoint(MethodView):
     def direct_verify(self):
         # What association did we use?
         try:
-            assoc_handle = request.args['openid.assoc_handle']
+            assoc_handle = request.form['openid.assoc_handle']
         except KeyError:
             logging.info("A direct verifier specified no association handle")
             return direct_response(is_valid='false')
@@ -237,14 +237,14 @@ class ServerEndpoint(MethodView):
 
         # What fields did we sign?
         try:
-            signed = request.args['openid.signed']
+            signed = request.form['openid.signed']
         except KeyError:
             logging.info("A direct verified specified no 'signed' field")
             return direct_response(is_valid='false')
         signed_fields = signed.split(',')
 
         try:
-            resp_items = list((k, request.args['openid.' + k]) for k in signed_fields)
+            resp_items = list((k, request.form['openid.' + k]) for k in signed_fields)
         except KeyError, exc:
             logging.info("A direct verifier specified a signed field containing %r but no %r field in the response", str(exc), str(exc))
             return direct_response(is_valid='false')
@@ -256,7 +256,7 @@ class ServerEndpoint(MethodView):
         expected_signature = b64encode(signer.digest())
 
         try:
-            signature = request.args['openid.sig']
+            signature = request.form['openid.sig']
         except KeyError:
             logging.info("A direct verifier specified no signature")
             return direct_response(is_valid='false')
