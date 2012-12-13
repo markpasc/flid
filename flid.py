@@ -173,7 +173,7 @@ class ServerEndpoint(MethodView):
 
         cur = g.db_conn.cursor()
         cur.execute("INSERT INTO openid_associations (handle, secret, assoc_type, expires) VALUES (%s, %s, %s, %s)",
-            (assoc_handle, mac_key, assoc_type, expires))
+            (assoc_handle, bytearray(mac_key), assoc_type, expires))
         g.db_conn.commit()
         cur.close()
 
