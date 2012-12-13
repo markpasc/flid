@@ -198,7 +198,9 @@ class ServerEndpoint(MethodView):
         dh_secret = dh.calculate_secret()
 
         hasher = hashlib.sha1 if session_type == 'DH-SHA1' else hashlib.sha256
-        enc_mac_key = b64encode(xor(hasher(dh_secret).digest(), mac_key))
+        hashed_session_key = hasher(btwoc(dh_secret)).digest()
+        cipher_key_bytes = xor(hashed_session_key, mac_key)
+        enc_mac_key = b64encode(cipher_key_bytes)
 
         return direct_response(
             assoc_type=assoc_type,
