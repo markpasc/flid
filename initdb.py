@@ -3,6 +3,12 @@ import psycopg2
 
 
 conn = psycopg2.connect(database='flid')
-store = sqlstore.PostgreSQLStore(conn)
 
-store.createTables()
+cur = conn.cursor()
+cur.execute("""CREATE TABLE openid_associations (
+    handle CHARACTER VARYING NOT NULL UNIQUE,
+    secret BYTEA NOT NULL,
+    assoc_type CHARACTER VARYING NOT NULL,
+    expires TIMESTAMP NOT NULL
+)""")
+conn.commit()

@@ -1,13 +1,14 @@
-from base64 import b32encode, b32decode
+from array import array
+from base64 import b32decode, b32encode, b64decode, b64encode
+from datetime import datetime, timedelta
+import hashlib
 import os
+import pickle
 from urllib import urlencode
 import urlparse
 
 from flask import Flask, g, make_response, render_template, request, session, url_for
 from flask.views import MethodView
-import openid
-from openid.server.server import Server, ProtocolError
-from openid.store.sqlstore import PostgreSQLStore
 import psycopg2
 
 
@@ -27,55 +28,181 @@ if 'FLID_SETTINGS' in os.environ:
 @app.before_request
 def before_request():
     g.db_conn = psycopg2.connect(app.config['DSN'])
-    store = PostgreSQLStore(g.db_conn)
-    g.server = Server(store, url_for('.server', _external=True))
 
 @app.teardown_request
 def teardown_request(exc):
-    g.server = None
     g.db_conn.close()
+    del g.db_conn
 
-def openid_to_flask_response(response):
-    webr = g.server.encodeResponse(response)  # raises server.EncodingError
-    resp = make_response(webr.body, webr.code)
-    for header, value in webr.headers.iteritems():
-        resp.headers[header] = value
-    return resp
+def btwoc(val):
+    """Return the given value in big-endian two's complement format."""
+    if l == 0:
+        return '\x00'
+    return ''.join(reversed(pickle.encode_long(l)))
+
+def unbtwoc(text):
+    return pickle.decode_long(''.join(reversed(text)))
+
+def xor(a, b):
+    abytes = array('B', a)
+    bbytes = array('B', b)
+    for i in range(len(abytes)):
+        abytes[i] ^= bbytes[i]
+    return abytes.tostring()
+
+def kv(items):
+    return ''.join("openid.%s:%s\n" % (key, value) for key, value in items)
+
+def direct_response(**kwargs):
+    items = kwargs.items()
+    items.append(('ns', 'http://specs.openid.net/auth/2.0'))
+    return kv(items), 400 if 'error' in kwargs else 200, {'Content-Type': 'text/plain'}
+
+def indirect_response(request_args, **kwargs):
+    try:
+        return_to = request_args['openid.return_to']
+    except KeyError:
+        return direct_response(error='Error generating indirect response (no return_to)')
+    kwargs['ns'] = 'http://specs.openid.net/auth/2.0'
+    if 'error' in kwargs:
+        kwargs['mode'] = 'error'
+
+    sep = '&' if '?' in return_to else '?'
+    resp = urlencode(('openid.' + key, value) for key, value in kwargs.iteritems())))
+    return redirect(sep.join((return_to, resp)))
 
 
 class ServerEndpoint(MethodView):
 
     def get(self):
-        return self.server_endpoint(request.args)
+        version = request.args.get('openid.ns')
+        if not version or version != 'http://specs.openid.net/auth/2.0':
+            return indirect_response(request.args, error="This server supports OpenID 2.0 only")
 
-    def post(self):
-        return self.server_endpoint(request.form)
-
-    def server_endpoint(self, query):
         try:
-            openid_request = g.server.decodeRequest(query)
-        except ProtocolError, exc:
-            return openid_to_flask_response(exc)
+            mode = request.args['openid.mode']
+        except KeyError:
+            return indirect_response(request.args, error="No openid.mode provided")
 
-        if openid_request is None:
-            return render_template('about.html')
+        if mode == 'checkid_immediate':
+            return indirect_response(request.args, mode='setup_needed')
+        elif mode == 'checkid_setup':
+            return self.checkid()
 
-        if openid_request.mode not in ('checkid_immediate', 'checkid_setup'):
-            resp = g.server.handleRequest(openid_request)
-            return openid_to_flask_response(resp)
+        return indirect_response(request.args, error="Unknown openid.mode provided")
 
-        # TODO: let through previously trusted trust roots.
-        # For now, no one is ever previously authorized.
-        if openid_request.immediate:
-            return openid_to_flask_response(openid_request.answer(False))
+    def checkid(self):
+        assoc_handle = self.args.get('openid.assoc_handle')
+        if assoc_handle is not None:
+            # load it from the db
+
+        realm = self.args.get('openid.realm') or self.argets.get('openid.return_to')
+        if realm is None:
+            return indirect_response(request.args, error="No realm provided")
+
+        try:
+            claimed_id = self.args['openid.claimed_id']
+        except KeyError:
+            return indirect_response(request.args, error="No claimed ID provided")
+        try:
+            identity = self.args['openid.identity']
+        except KeyError:
+            return indirect_response(request.args, error="No local identifier (openid.identity) provided")
+        if identity == 'http://specs.openid.net/auth/2.0/identifier_select':
+            return indirect_response(request.args, error="Identifier selection is not supported")
+        if identity != claimed_id:
+            return indirect_response(request.args, error="Requested local identifier does not match the claimed identifier? what is this i don't even lol")
 
         try:
             csrf_token = session['csrf_token']
         except KeyError:
             csrf_token = session['csrf_token'] = os.urandom(24)
         csrf_token = b32encode(csrf_token)
-        return render_template('decide.html', openid_request=openid_request,
+        return render_template('decide.html', openid_request=,
             request_args=urlencode(query), csrf_token=csrf_token)
+
+    def post(self):
+        version = request.form.get('openid.ns')
+        if not version or version != 'http://specs.openid.net/auth/2.0':
+            return err_response(error="This server supports OpenID 2.0 only")
+
+        try:
+            mode = request.form['openid.mode']
+        except KeyError:
+            return err_response(error="No openid.mode provided")
+
+        if mode == 'associate':
+            return self.associate()
+
+        return err_response(error="Unknown openid.mode provided")
+
+    def associate(self):
+        assoc_type = request.form.get('openid.assoc_type')
+        if assoc_type not in ('HMAC-SHA1', 'HMAC-SHA256'):
+            return err_response(
+                error="Unknown association type requested",
+                error_code="unsupported-type",
+                assoc_type="HMAC-SHA256",
+                session_type="DH-SHA256",
+            )
+
+        session_type = request.form.get('openid.session_type')
+        if session_type == 'no-encryption':
+            # TODO: support no-encryption if we can tell we're on SSL?
+            return err_response(
+                error="Session type no-encryption is not supported on non-HTTPS connections",
+                error_code="unsupported-type",
+                assoc_type="HMAC-SHA256",
+                session_type="DH-SHA256",
+            )
+        if session_type not in ('DH-SHA1', 'DH-SHA256'):
+            return err_response(
+                error="Unknown session type requested",
+                error_code="unsupported-type",
+                assoc_type="HMAC-SHA256",
+                session_type="DH-SHA256",
+            )
+
+        mac_key = os.urandom(20 if assoc_type == 'HMAC-SHA1' else 32)
+        assoc_handle = b64encode(os.urandom(20))
+        expires = datetime.utcnow() + timedelta(seconds=1000)
+
+        cur = g.db_conn.cursor()
+        cur.execute("INSERT INTO openid_associations (handle, secret, assoc_type, expires) VALUES (%s, %s, %s, %s)",
+            (assoc_handle, mac_key, assoc_type, expires))
+        g.db_conn.commit()
+        cur.close()
+
+        dh_mod = request.form.get('openid.dh_modulus')
+        dh_gen = request.form.get('openid.dh_gen')
+        if dh_mod is not None:
+            dh_mod = unbtwoc(b64decode(dh_mod))
+        if dh_gen is not None:
+            dh_gen = unbtwoc(b64decode(dh_gen))
+
+        try:
+            dh_consumer_public = request.form['openid.dh_consumer_public']
+        except KeyError:
+            return err_response(error="Required parameter dh_consumer_public not provided")
+        dh_consumer_public = unbtwoc(b64decode(dh_consumer_public))
+
+        dh = DiffieHellman(dh_mod, dh_gen, dh_consumer_public)
+        dh.select_key()
+        dh_server_public = b64encode(btwoc(dh.calculate_public_key()))
+        dh_server_public = b64encode(btwoc(dh_server_public))
+        dh_secret = dh.calculate_secret()
+
+        hasher = hashlib.sha1 if session_type == 'DH-SHA1' else hashlib.sha256
+        enc_mac_key = b64encode(xor(hasher(dh_secret).digest(), mac_key))
+
+        return direct_response(
+            assoc_type=assoc_type,
+            session_type=session_type,
+            assoc_handle=assoc_handle,
+            expires_in=1000,
+            dh_server_public=dh_server_public,
+            enc_mac_key=enc_mac_key,
+        )
 
 
 app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
@@ -83,22 +210,60 @@ app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
 
 @app.route('/allow', methods=('POST',))
 def allow():
-    oir_args = dict(urlparse.parse_qsl(request.form['request_args']))
-    openid_request = g.server.decodeRequest(oir_args)
-
     csrf_token = request.form['token']
     if b32decode(csrf_token) != session.get('csrf_token'):
-        raise ValueError("HOGAD CSRF TOKENS DO NOT MATCH")
+        return indirect_response(orig_args, error="Someone forged the login form!!1!")
 
+    # TODO: verify that the viewer is the site owner or w/e
+
+    orig_args = dict(urlparse.parse_qsl(request.form['request_args']))
     if 'yes' not in request.form:
-        return openid_to_flask_response(openid_request.answer(False))
+        return indirect_response(orig_args, mode='cancel')
 
-    if openid_request.idSelect():
-        identity = url_for('.ident', _external=True)
-    else:
-        identity = openid_request.identity
-    resp = openid_request.answer(True, identity)
-    return openid_to_flask_response(resp)
+    # Yay, assert the authentication.
+    try:
+        assoc_handle = orig_args['openid.assoc_handle']
+    except KeyError:
+        return indirect_response(orig_args, error="No association handle given but stateless authentication mode is not supported :(")
+
+    cur = g.db_conn.cursor()
+    cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND expires <= %s",
+        (assoc_handle, datetime.utcnow()))
+    try:
+        mac_key, assoc_type = cur.fetchone()
+    except psycopg2.ProgrammingError:
+        return indirect_response(orig_args, error="Invalid association used but stateless authentication mode is not supported :(")
+    cur.close()
+
+    # We don't really need to record the squib. We'd have to get the same six random bytes in the same second to duplicate one. It's up to the client to ensure uniqueness to prevent replay attacks.
+    squib_now = datetime.utcnow().replace(microsecond=0).isoformat()
+    squib_junk = b64encode(os.urandom(6))
+    squib = '%sZ%s' % (squib_now, squib_junk)
+
+    resp = {
+        'ns': 'http://specs.openid.net/auth/2.0',
+        'mode': 'id_res',
+        'op_endpoint': url_for('.server', _external=True),
+        'assoc_handle': assoc_handle,
+        'response_nonce': squib,
+        'claimed_id': orig_args['openid.claimed_id'],
+        'identity': orig_args['openid.identity'],
+        'return_to': orig_args['openid.return_to'],
+    }
+    resp_items = resp.items()
+
+    signed_fields = ','.join(k for k, v in resp_items)
+    resp_items.append(('signed', signed + ',signed'))
+
+    plaintext = kv(resp_items)
+    assoc_type = orig_args.get('openid.assoc_type')
+    digestmod = hashlib.sha1 if assoc_type == 'HMAC-SHA1' else hashlib.sha256
+    signer = hmac.new(mac_key, plaintext, digestmod)
+    signature = b64encode(signer.digest())
+
+    resp['sig'] = signature
+
+    return indirect_response(orig_args, **resp, sig=sig)
 
 
 @app.route('/')
