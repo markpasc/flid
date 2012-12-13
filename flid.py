@@ -7,7 +7,7 @@ import pickle
 from urllib import urlencode
 import urlparse
 
-from flask import Flask, g, make_response, render_template, request, session, url_for
+from flask import Flask, g, make_response, redirect, render_template, request, session, url_for
 from flask.views import MethodView
 import psycopg2
 
