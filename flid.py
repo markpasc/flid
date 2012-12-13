@@ -11,6 +11,8 @@ from flask import Flask, g, make_response, redirect, render_template, request, s
 from flask.views import MethodView
 import psycopg2
 
+from dh import DiffieHellman
+
 
 class DefaultSettings(object):
     DEBUG = True
