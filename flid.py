@@ -195,7 +195,6 @@ class ServerEndpoint(MethodView):
         dh = DiffieHellman(dh_mod, dh_gen, dh_consumer_public)
         dh.select_key()
         dh_server_public = b64encode(btwoc(dh.calculate_public_key()))
-        dh_server_public = b64encode(btwoc(dh_server_public))
         dh_secret = dh.calculate_secret()
 
         hasher = hashlib.sha1 if session_type == 'DH-SHA1' else hashlib.sha256
