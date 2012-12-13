@@ -226,13 +226,13 @@ class ServerEndpoint(MethodView):
             return direct_response(is_valid='false')
 
         cur = g.db_conn.cursor()
-        cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND private = false AND expires <= %s",
+        cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND private = true AND expires <= %s",
             (assoc_handle, datetime.utcnow()))
-        try:
-            mac_key, assoc_type = cur.fetchone()
-        except psycopg2.ProgrammingError:
+        result = cur.fetchone()
+        if result is None:
             logging.info("A direct verifier specified an invalid association handle %r", assoc_handle)
             return direct_response(is_valid='false', invalidate_handle=assoc_handle)
+        mac_key, assoc_type = result
         cur.close()
 
         # What fields did we sign?
@@ -295,10 +295,11 @@ def allow():
         cur = g.db_conn.cursor()
         cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND private = false AND expires <= %s",
             (assoc_handle, datetime.utcnow()))
-        try:
-            mac_key, assoc_type = cur.fetchone()
-        except psycopg2.ProgrammingError:
+        result = cur.fetchone()
+        if result is None:
             resp['invalidate_handle'] = assoc_handle  # and make up a key
+        else:
+            mac_key, assoc_type = result
         cur.close()
 
     # If the handle was invalid or not given, make up a new private association for the relying party to directly verify against.
