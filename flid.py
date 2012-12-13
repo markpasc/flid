@@ -55,7 +55,11 @@ def xor(a, b):
     return abytes.tostring()
 
 def kv(items):
-    return ''.join("openid.%s:%s\n" % (key, value) for key, value in items)
+    return ''.join("%s:%s\n" % (key, value) for key, value in items)
+
+def openid_prefix(items):
+    for k, v in items:
+        yield ('openid.' + k, v)
 
 def direct_response(**kwargs):
     items = kwargs.items()
@@ -248,7 +252,7 @@ class ServerEndpoint(MethodView):
         except KeyError, exc:
             logging.info("A direct verifier specified a signed field containing %r but no %r field in the response", str(exc), str(exc))
             return direct_response(is_valid='false')
-        plaintext = kv(resp_items)
+        plaintext = kv(openid_prefix(resp_items))
 
         # SIGN 'EM
         digestmod = hashlib.sha1 if assoc_type == 'HMAC-SHA1' else hashlib.sha256  # it'll be 256
@@ -338,7 +342,7 @@ def allow():
     resp['signed'] = signed_fields
     resp_items.append(('signed', signed_fields))  # eh just add it manually
 
-    plaintext = kv(resp_items)
+    plaintext = kv(openid_prefix(resp_items))
     digestmod = hashlib.sha1 if assoc_type == 'HMAC-SHA1' else hashlib.sha256
     signer = hmac.new(mac_key, plaintext, digestmod)
     signature = b64encode(signer.digest())
