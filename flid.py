@@ -287,7 +287,6 @@ def allow():
 
     resp = {
         'ns': 'http://specs.openid.net/auth/2.0',
-        'mode': 'id_res',
     }
 
     # Yay, assert the authentication.
@@ -344,6 +343,8 @@ def allow():
     signer = hmac.new(mac_key, plaintext, digestmod)
     signature = b64encode(signer.digest())
 
+    # Don't include mode in the signature, since direct verifiers have to change the mode from 'id_res' to 'check_authentication' anyway so we can't check such a signature.
+    resp['mode'] = 'id_res'
     resp['sig'] = signature
     return indirect_response(orig_args, **resp)
 
