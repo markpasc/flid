@@ -38,9 +38,9 @@ def teardown_request(exc):
 
 def btwoc(val):
     """Return the given value in big-endian two's complement format."""
-    if l == 0:
+    if val == 0:
         return '\x00'
-    return ''.join(reversed(pickle.encode_long(l)))
+    return ''.join(reversed(pickle.encode_long(val)))
 
 def unbtwoc(text):
     return pickle.decode_long(''.join(reversed(text)))
