@@ -261,8 +261,13 @@ class ServerEndpoint(MethodView):
             logging.info("A direct verifier specified no signature")
             return direct_response(is_valid='false')
 
-        is_valid = 'true' if signature == expected_signature else 'false'
-        return direct_response(is_valid=is_valid)
+        if signature == expected_signature:
+            # Yay yay!
+            logging.info("A direct verifier successfully verified!")
+            return direct_response(is_valid='true')
+
+        logging.info("A direct verified gave data with signature %r but from data we expected %r :(", signature, expected_signature)
+        return direct_response(is_valid='false')
 
 
 app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
