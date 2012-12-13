@@ -2,6 +2,7 @@ from array import array
 from base64 import b32decode, b32encode, b64decode, b64encode
 from datetime import datetime, timedelta
 import hashlib
+import logging
 import os
 import pickle
 from urllib import urlencode
@@ -88,6 +89,8 @@ class ServerEndpoint(MethodView):
             return indirect_response(request.args, error="No openid.mode provided")
 
         if mode == 'checkid_immediate':
+            # No immediate requests are allowed.
+            # TODO: remember some whitelisted realms?
             return indirect_response(request.args, mode='setup_needed')
         elif mode == 'checkid_setup':
             return self.checkid()
@@ -97,7 +100,7 @@ class ServerEndpoint(MethodView):
     def checkid(self):
         assoc_handle = request.args.get('openid.assoc_handle')
         if assoc_handle is None:
-            return indirect_response(request.args, error="No association handle given and stateless mode is not supported :(")
+            logging.info("Relying party didn't associate first OH WELL <3")
 
         realm = request.args.get('openid.realm') or request.args.get('openid.return_to')
         if realm is None:
@@ -139,6 +142,8 @@ class ServerEndpoint(MethodView):
 
         if mode == 'associate':
             return self.associate()
+        elif mode == 'check_authentication':
+            return self.direct_verify()
 
         return err_response(error="Unknown openid.mode provided")
 
@@ -174,7 +179,7 @@ class ServerEndpoint(MethodView):
         expires = datetime.utcnow() + timedelta(seconds=1000)
 
         cur = g.db_conn.cursor()
-        cur.execute("INSERT INTO openid_associations (handle, secret, assoc_type, expires) VALUES (%s, %s, %s, %s)",
+        cur.execute("INSERT INTO openid_associations (handle, private, secret, assoc_type, expires) VALUES (%s, false, %s, %s, %s)",
             (assoc_handle, bytearray(mac_key), assoc_type, expires))
         g.db_conn.commit()
         cur.close()
@@ -211,6 +216,53 @@ class ServerEndpoint(MethodView):
             enc_mac_key=enc_mac_key,
         )
 
+    def direct_verify(self):
+        # What association did we use?
+        try:
+            assoc_handle = request.args['openid.assoc_handle']
+        except KeyError:
+            logging.info("A direct verifier specified no association handle")
+            return direct_response(is_valid='false')
+
+        cur = g.db_conn.cursor()
+        cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND private = false AND expires <= %s",
+            (assoc_handle, datetime.utcnow()))
+        try:
+            mac_key, assoc_type = cur.fetchone()
+        except psycopg2.ProgrammingError:
+            logging.info("A direct verifier specified an invalid association handle %r", assoc_handle)
+            return direct_response(is_valid='false', invalidate_handle=assoc_handle)
+        cur.close()
+
+        # What fields did we sign?
+        try:
+            signed = request.args['openid.signed']
+        except KeyError:
+            logging.info("A direct verified specified no 'signed' field")
+            return direct_response(is_valid='false')
+        signed_fields = signed.split(',')
+
+        try:
+            resp_items = list((k, request.args['openid.' + k]) for k in signed_fields)
+        except KeyError, exc:
+            logging.info("A direct verifier specified a signed field containing %r but no %r field in the response", str(exc), str(exc))
+            return direct_response(is_valid='false')
+        plaintext = kv(resp_items)
+
+        # SIGN 'EM
+        digestmod = hashlib.sha1 if assoc_type == 'HMAC-SHA1' else hashlib.sha256  # it'll be 256
+        signer = hmac.new(mac_key, plaintext, digestmod)
+        expected_signature = b64encode(signer.digest())
+
+        try:
+            signature = request.args['openid.sig']
+        except KeyError:
+            logging.info("A direct verifier specified no signature")
+            return direct_response(is_valid='false')
+
+        is_valid = 'true' if signature == expected_signature else 'false'
+        return direct_response(is_valid=is_valid)
+
 
 app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
 
@@ -227,43 +279,59 @@ def allow():
     if 'yes' not in request.form:
         return indirect_response(orig_args, mode='cancel')
 
+    resp = {
+        'ns': 'http://specs.openid.net/auth/2.0',
+        'mode': 'id_res',
+    }
+
     # Yay, assert the authentication.
+    assoc_handle, mac_key = None, None
     try:
         assoc_handle = orig_args['openid.assoc_handle']
     except KeyError:
-        return indirect_response(orig_args, error="No association handle given but stateless authentication mode is not supported :(")
+        pass  # make one up
+    else:
+        cur = g.db_conn.cursor()
+        cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND private = false AND expires <= %s",
+            (assoc_handle, datetime.utcnow()))
+        try:
+            mac_key, assoc_type = cur.fetchone()
+        except psycopg2.ProgrammingError:
+            resp['invalidate_handle'] = assoc_handle  # and make up a key
+        cur.close()
 
-    cur = g.db_conn.cursor()
-    cur.execute("SELECT secret, assoc_type FROM openid_associations WHERE handle = %s AND expires <= %s",
-        (assoc_handle, datetime.utcnow()))
-    try:
-        mac_key, assoc_type = cur.fetchone()
-    except psycopg2.ProgrammingError:
-        return indirect_response(orig_args, error="Invalid association used but stateless authentication mode is not supported :(")
-    cur.close()
+    # If the handle was invalid or not given, make up a new private association for the relying party to directly verify against.
+    if mac_key is None:
+        assoc_type = 'HMAC-SHA256'
+        mac_key = os.urandom(32)
+        assoc_handle = b64encode(os.urandom(20))
+        expires = datetime.utcnow() + timedelta(seconds=1000)
+
+        cur = g.db_conn.cursor()
+        cur.execute("INSERT INTO openid_associations (handle, private, secret, assoc_type, expires) VALUES (%s, true, %s, %s, %s)",
+            (assoc_handle, bytearray(mac_key), assoc_type, expires))
+        g.db_conn.commit()
+        cur.close()
 
     # We don't really need to record the squib. We'd have to get the same six random bytes in the same second to duplicate one. It's up to the client to ensure uniqueness to prevent replay attacks.
     squib_now = datetime.utcnow().replace(microsecond=0).isoformat()
     squib_junk = b64encode(os.urandom(6))
     squib = '%sZ%s' % (squib_now, squib_junk)
 
-    resp = {
-        'ns': 'http://specs.openid.net/auth/2.0',
-        'mode': 'id_res',
+    resp.update({
         'op_endpoint': url_for('.server', _external=True),
         'assoc_handle': assoc_handle,
         'response_nonce': squib,
         'claimed_id': orig_args['openid.claimed_id'],
         'identity': orig_args['openid.identity'],
         'return_to': orig_args['openid.return_to'],
-    }
+    })
     resp_items = resp.items()
 
     signed_fields = ','.join(k for k, v in resp_items)
     resp_items.append(('signed', signed + ',signed'))
 
     plaintext = kv(resp_items)
-    assoc_type = orig_args.get('openid.assoc_type')
     digestmod = hashlib.sha1 if assoc_type == 'HMAC-SHA1' else hashlib.sha256
     signer = hmac.new(mac_key, plaintext, digestmod)
     signature = b64encode(signer.digest())
@@ -278,4 +346,5 @@ def hello_world():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     app.run(debug=True)
