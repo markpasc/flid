@@ -1,4 +1,3 @@
-from openid.store import sqlstore
 import psycopg2
 
 
