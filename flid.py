@@ -93,10 +93,10 @@ class ServerEndpoint(MethodView):
 
     def checkid(self):
         assoc_handle = self.args.get('openid.assoc_handle')
-        if assoc_handle is not None:
-            # load it from the db
+        if assoc_handle is None:
+            return indirect_response(request.args, error="No association handle given and stateless mode is not supported :(")
 
-        realm = self.args.get('openid.realm') or self.argets.get('openid.return_to')
+        realm = self.args.get('openid.realm') or self.args.get('openid.return_to')
         if realm is None:
             return indirect_response(request.args, error="No realm provided")
 
