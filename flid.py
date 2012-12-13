@@ -127,7 +127,7 @@ class ServerEndpoint(MethodView):
         return render_template('decide.html',
             realm=realm,
             identity=identity,
-            request_args=urlencode(query),
+            request_args=urlencode(request.args),
             csrf_token=csrf_token)
 
     def post(self):
