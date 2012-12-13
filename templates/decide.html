@@ -1,15 +1,8 @@
-{% if openid_request.idSelect() %}
-    <p>The site <strong>{{ openid_request.trust_root }}</strong> wonders who you are.</p>
-{% else %}
-    <p>The site <strong>{{ openid_request.trust_root }}</strong> wants to confirm you are <strong>{{ openid_request.identity }}</strong>.</p>
-{% endif %}
+<p>The site <strong>{{ realm }}</strong> wants to confirm you are <strong>{{ identity }}</strong>.</p>
 
 <form method="post" action="{{ url_for('allow') }}">
     <input type="hidden" name="token" value="{{ csrf_token }}">
     <input type="hidden" name="request_args" value="{{ request_args }}">
-    {% if openid_request.idSelect() %}
-    <p><label>Identifier <input name="identifier"></label></p>
-    {% endif %}
     <p><input type="submit" name="yes" value="Allow"></p>
     <p><input type="submit" name="no" value="Cancel"></p>
 </form>

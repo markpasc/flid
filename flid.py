@@ -118,8 +118,11 @@ class ServerEndpoint(MethodView):
         except KeyError:
             csrf_token = session['csrf_token'] = os.urandom(24)
         csrf_token = b32encode(csrf_token)
-        return render_template('decide.html', openid_request=,
-            request_args=urlencode(query), csrf_token=csrf_token)
+        return render_template('decide.html',
+            realm=realm,
+            identity=identity,
+            request_args=urlencode(query),
+            csrf_token=csrf_token)
 
     def post(self):
         version = request.form.get('openid.ns')
