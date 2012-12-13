@@ -68,7 +68,8 @@ def indirect_response(request_args, **kwargs):
         kwargs['mode'] = 'error'
 
     sep = '&' if '?' in return_to else '?'
-    resp = urlencode(('openid.' + key, value) for key, value in kwargs.iteritems())
+    resp_args = (('openid.' + key, value) for key, value in kwargs.iteritems())
+    resp = urlencode(tuple(resp_args))
     return redirect(sep.join((return_to, resp)))
 
 
