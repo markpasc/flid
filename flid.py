@@ -329,8 +329,9 @@ def allow():
     })
     resp_items = resp.items()
 
-    signed_fields = ','.join(k for k, v in resp_items)
-    resp_items.append(('signed', signed_fields + ',signed'))
+    signed_fields = ','.join(k for k, v in resp_items) + ',signed'
+    resp['signed'] = signed_fields
+    resp_items.append(('signed', signed_fields))  # eh just add it manually
 
     plaintext = kv(resp_items)
     digestmod = hashlib.sha1 if assoc_type == 'HMAC-SHA1' else hashlib.sha256
