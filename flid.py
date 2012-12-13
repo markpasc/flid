@@ -2,6 +2,7 @@ from array import array
 from base64 import b32decode, b32encode, b64decode, b64encode
 from datetime import datetime, timedelta
 import hashlib
+import hmac
 import logging
 import os
 import pickle
