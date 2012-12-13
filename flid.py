@@ -265,8 +265,7 @@ def allow():
     signature = b64encode(signer.digest())
 
     resp['sig'] = signature
-
-    return indirect_response(orig_args, **resp, sig=sig)
+    return indirect_response(orig_args, **resp)
 
 
 @app.route('/')
