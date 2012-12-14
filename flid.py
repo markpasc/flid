@@ -142,19 +142,19 @@ class ServerEndpoint(MethodView):
     def post(self):
         version = request.form.get('openid.ns')
         if not version or version != 'http://specs.openid.net/auth/2.0':
-            return err_response(error="This server supports OpenID 2.0 only")
+            return direct_response(error="This server supports OpenID 2.0 only")
 
         try:
             mode = request.form['openid.mode']
         except KeyError:
-            return err_response(error="No openid.mode provided")
+            return direct_response(error="No openid.mode provided")
 
         if mode == 'associate':
             return self.associate()
         elif mode == 'check_authentication':
             return self.direct_verify()
 
-        return err_response(error="Unknown openid.mode provided")
+        return direct_response(error="Unknown openid.mode provided")
 
     def associate(self):
         assoc_type = request.form.get('openid.assoc_type')
