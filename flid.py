@@ -102,31 +102,31 @@ class ServerEndpoint(MethodView):
             # TODO: remember some whitelisted realms?
             return indirect_response(request.args, mode='setup_needed')
         elif mode == 'checkid_setup':
-            return self.checkid()
+            return self.checkid(request.args)
 
         return indirect_response(request.args, error="Unknown openid.mode provided")
 
-    def checkid(self):
-        assoc_handle = request.args.get('openid.assoc_handle')
+    def checkid(self, args):
+        assoc_handle = args.get('openid.assoc_handle')
         if assoc_handle is None:
             logging.info("Relying party didn't associate first OH WELL <3")
 
-        realm = request.args.get('openid.realm') or request.args.get('openid.return_to')
+        realm = args.get('openid.realm') or args.get('openid.return_to')
         if realm is None:
-            return indirect_response(request.args, error="No realm provided")
+            return indirect_response(args, error="No realm provided")
 
         try:
-            claimed_id = request.args['openid.claimed_id']
+            claimed_id = args['openid.claimed_id']
         except KeyError:
-            return indirect_response(request.args, error="No claimed ID provided")
+            return indirect_response(args, error="No claimed ID provided")
         try:
-            identity = request.args['openid.identity']
+            identity = args['openid.identity']
         except KeyError:
-            return indirect_response(request.args, error="No local identifier (openid.identity) provided")
+            return indirect_response(args, error="No local identifier (openid.identity) provided")
         if identity == 'http://specs.openid.net/auth/2.0/identifier_select':
-            return indirect_response(request.args, error="Identifier selection is not supported")
+            return indirect_response(args, error="Identifier selection is not supported")
         if identity != claimed_id:
-            return indirect_response(request.args, error="Requested local identifier does not match the claimed identifier? what is this i don't even lol")
+            return indirect_response(args, error="Requested local identifier does not match the claimed identifier? what is this i don't even lol")
 
         try:
             csrf_token = session['csrf_token']
@@ -136,7 +136,7 @@ class ServerEndpoint(MethodView):
         return render_template('decide.html',
             realm=realm,
             identity=identity,
-            request_args=urlencode(request.args),
+            request_args=urlencode(args),
             csrf_token=csrf_token)
 
     def post(self):
@@ -153,6 +153,8 @@ class ServerEndpoint(MethodView):
             return self.associate()
         elif mode == 'check_authentication':
             return self.direct_verify()
+        elif mode == 'checkid_setup':
+            return self.checkid(request.form)
 
         return direct_response(error="Unknown openid.mode provided")
 
