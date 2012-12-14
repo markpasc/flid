@@ -214,11 +214,15 @@ class ServerEndpoint(MethodView):
         dh.select_key()
         dh_server_public = b64encode(btwoc(dh.calculate_public_key()))
         dh_secret = dh.calculate_secret()
+        logging.debug("Calculated our shared secret is %r", dh_secret)
 
         hasher = hashlib.sha1 if session_type == 'DH-SHA1' else hashlib.sha256
         hashed_session_key = hasher(btwoc(dh_secret)).digest()
+        logging.debug("Hashed session key is %r", hashed_session_key)
         cipher_key_bytes = xor(hashed_session_key, mac_key)
+        logging.debug("Ciphered key bytes are %r", cipher_key_bytes)
         enc_mac_key = b64encode(cipher_key_bytes)
+        logging.debug("Base64-encoded ciphered key bytes are %r", enc_mac_key)
 
         return direct_response(
             assoc_type=assoc_type,
