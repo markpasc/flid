@@ -202,7 +202,7 @@ class ServerEndpoint(MethodView):
             return err_response(error="Required parameter dh_consumer_public not provided")
         dh_consumer_public = unbtwoc(b64decode(dh_consumer_public))
 
-        dh = DiffieHellman(dh_mod, dh_gen, dh_consumer_public)
+        dh = DiffieHellman(dh_gen, dh_mod, dh_consumer_public)
         dh.select_key()
         dh_server_public = b64encode(btwoc(dh.calculate_public_key()))
         dh_secret = dh.calculate_secret()

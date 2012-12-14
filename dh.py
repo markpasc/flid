@@ -7,9 +7,9 @@ DEFAULT_MODULUS = 0xDCF93A0B883972EC0E19989AC5A2CE310E1D37717E8D9571BB7623731866
 
 class DiffieHellman(object):
 
-    def __init__(self, modulus=None, generator=None, their_public_key=None):
-        self.modulus = modulus if modulus is not None else DEFAULT_MODULUS
+    def __init__(self, generator=None, modulus=None, their_public_key=None):
         self.generator = generator if generator is not None else 2
+        self.modulus = modulus if modulus is not None else DEFAULT_MODULUS
         self.their_public_key = their_public_key
 
     def select_key(self):
