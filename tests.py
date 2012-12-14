@@ -1,6 +1,7 @@
 import unittest
 
-from dh import DiffieHellman
+from dh import DiffieHellman, DEFAULT_MODULUS
+from flid import btwoc, unbtwoc
 
 
 class DhTests(unittest.TestCase):
@@ -60,6 +61,25 @@ class DhTests(unittest.TestCase):
         dh, yb, zz = self.configure(locals())
         self.assertEqual(dh.calculate_public_key(), yb)
         self.assertEqual(dh.calculate_secret(), zz)
+
+
+class BtwocTests(unittest.TestCase):
+
+    def test_one(self):
+        tests = (
+            (37, '%'),
+            (3000000, '-\xc6\xc0'),
+            (0, '\x00'),
+            (1, '\x01'),
+            (0x7fffffffffffffff, '\x7f\xff\xff\xff\xff\xff\xff\xff'),  # may be sys.maxint
+            (0x8000000000000000, '\x00\x80\x00\x00\x00\x00\x00\x00\x00'),  # but these are longs
+            (0xffffffffffffffff, '\x00\xff\xff\xff\xff\xff\xff\xff\xff'),
+            (DEFAULT_MODULUS, '\x00\xdc\xf9:\x0b\x889r\xec\x0e\x19\x98\x9a\xc5\xa2\xce1\x0e\x1d7q~\x8d\x95q\xbbv#s\x18f\xe6\x1e\xf7Z.\'\x89\x8b\x05\x7f\x98\x91\xc2\xe2zc\x9c?)\xb6\x08\x14X\x1c\xd3\xb2\xca9\x86\xd2h7\x05W}E\xc2\xe7\xe5-\xc8\x1cz\x17\x18v\xe5\xce\xa7K\x14H\xbf\xdf\xaf\x18\x82\x8e\xfd%\x19\xf1NE\xe3\x82f4\xaf\x19I\xe5\xb55\xcc\x82\x9aH;\x8av">]I\n%\x7f\x05\xbd\xff\x16\xf2\xfb"\xc5\x83\xab'),
+        )
+
+        for num, text in tests:
+            self.assertEqual(btwoc(num), text, "converting %d (0x%x) to two's complement" % (num, num))
+            self.assertEqual(unbtwoc(text), num, "converting %r from two's complement" % text)
 
 
 if __name__ == '__main__':
