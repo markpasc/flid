@@ -183,6 +183,8 @@ class ServerEndpoint(MethodView):
         assoc_handle = b64encode(os.urandom(20))
         expires = datetime.utcnow() + timedelta(seconds=1000)
 
+        logging.debug("Formed a shared association %s with key %r!", assoc_handle, mac_key)
+
         cur = g.db_conn.cursor()
         cur.execute("INSERT INTO openid_associations (handle, private, secret, assoc_type, expires) VALUES (%s, false, %s, %s, %s)",
             (assoc_handle, bytearray(mac_key), assoc_type, expires))
@@ -343,6 +345,7 @@ def allow():
     resp_items.append(('signed', signed_fields))  # eh just add it manually
 
     plaintext = kv(openid_prefix(resp_items))
+    logging.debug("Signing plaintext %r", plaintext)
     digestmod = hashlib.sha1 if assoc_type == 'HMAC-SHA1' else hashlib.sha256
     signer = hmac.new(mac_key, plaintext, digestmod)
     signature = b64encode(signer.digest())
