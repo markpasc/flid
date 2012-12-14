@@ -84,6 +84,10 @@ def indirect_response(request_args, **kwargs):
 class ServerEndpoint(MethodView):
 
     def get(self):
+        if not any(x in request.args for x in ('openid.ns', 'openid.mode', 'openid.return_to')):
+            # Probably someone in a browser, so say hi.
+            return render_template('about.html')
+
         version = request.args.get('openid.ns')
         if not version or version != 'http://specs.openid.net/auth/2.0':
             return indirect_response(request.args, error="This server supports OpenID 2.0 only")
