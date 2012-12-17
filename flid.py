@@ -129,8 +129,7 @@ class ServerEndpoint(MethodView):
         if identity != claimed_id:
             return indirect_response(args, error="Requested local identifier does not match the claimed identifier? what is this i don't even lol")
 
-        # TODO: include the time to prevent replay attacks?
-        challenge = b64encode(os.urandom(20))
+        challenge = b64encode(os.urandom(32))
 
         try:
             csrf_token = session['csrf_token']
@@ -318,8 +317,7 @@ def allow():
         return indirect_response(orig_args, mode='cancel')
 
     # TODO: verify the challenge in some way?
-
-    msg = hmac.new(challenge, app.config['PASSWORD'], hashlib.sha256)
+    msg = hmac.new(b64decode(challenge), app.config['PASSWORD'], hashlib.sha256)
     expected_authkey = b64encode(msg.digest())
     if expected_authkey != authkey:
         logging.debug("Oops, someone tried to log in with authkey %r but expected %r", authkey, expected_authkey)
