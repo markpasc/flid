@@ -1,3 +1,11 @@
+{% extends "base.html" %}
+
+{% block htmltitle %}Sign in to {{realm}}{% endblock %}
+
+{% block content %}
+
+<h1>Aww yeah signin’ in</h1>
+
 <p>The site <strong>{{ realm }}</strong> wants to confirm you are <strong>{{ identity }}</strong>.</p>
 
 <form method="post" action="{{ url_for('allow') }}">
@@ -6,3 +14,5 @@
     <p><input type="submit" name="yes" value="Allow"></p>
     <p><input type="submit" name="no" value="Cancel"></p>
 </form>
+
+{% endblock %}

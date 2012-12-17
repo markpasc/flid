@@ -368,7 +368,7 @@ def allow():
 
 @app.route('/')
 def hello_world():
-    return u'Hello world!'
+    return render_template('about.html')
 
 
 if __name__ == '__main__':
