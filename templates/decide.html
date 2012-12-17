@@ -22,7 +22,7 @@
 
 <script src="{{ url_for('static', filename='hmac-sha256.js') }}"></script>
 <script>
-    document.getElementsByTagName('form').element(0).onsubmit = function (e) {
+    document.getElementsByTagName('form').item(0).onsubmit = function (e) {
         var challenge = CryptoJS.enc.Base64.parse(document.getElementById('authkey').value);
         var password = document.getElementById('password').value;
 
