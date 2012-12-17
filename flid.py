@@ -264,7 +264,7 @@ class ServerEndpoint(MethodView):
         except KeyError, exc:
             logging.info("A direct verifier specified a signed field containing %r but no %r field in the response", str(exc), str(exc))
             return direct_response(is_valid='false')
-        plaintext = kv(openid_prefix(resp_items))
+        plaintext = kv(resp_items)
 
         # SIGN 'EM
         digestmod = hashlib.sha1 if assoc_type == 'HMAC-SHA1' else hashlib.sha256  # it'll be 256
@@ -354,7 +354,7 @@ def allow():
     resp['signed'] = signed_fields
     resp_items.append(('signed', signed_fields))  # eh just add it manually
 
-    plaintext = kv(openid_prefix(resp_items))
+    plaintext = kv(resp_items)
     logging.debug("Signing plaintext %r", plaintext)
     digestmod = hashlib.sha1 if assoc_type == 'HMAC-SHA1' else hashlib.sha256
     signer = hmac.new(mac_key, plaintext, digestmod)
