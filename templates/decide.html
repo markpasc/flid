@@ -25,11 +25,11 @@
 <script>
     document.getElementsByTagName('form').item(0).onsubmit = function (e) {
         try {
-            var challenge = CryptoJS.enc.Base64.parse(document.getElementById('authkey').value);
+            var challenge = CryptoJS.enc.Base64.parse(document.getElementById('challenge').value);
             var password = document.getElementById('password').value;
 
             var hash = CryptoJS.HmacSHA256(password, challenge);
-            document.getElementById('authkey').value = hash;
+            document.getElementById('authkey').value = hash.toString(CryptoJS.enc.Base64);
             return true;  // send the form
         } catch(e) {
             console.log(e);
