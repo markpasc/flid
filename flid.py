@@ -19,6 +19,7 @@ from dh import DiffieHellman
 class DefaultSettings(object):
     DEBUG = True
     DSN = 'dbname=flid'
+    PASSWORD = 'password'
 
 default_settings = DefaultSettings()
 
@@ -128,6 +129,9 @@ class ServerEndpoint(MethodView):
         if identity != claimed_id:
             return indirect_response(args, error="Requested local identifier does not match the claimed identifier? what is this i don't even lol")
 
+        # TODO: include the time to prevent replay attacks?
+        challenge = b64encode(os.urandom(20))
+
         try:
             csrf_token = session['csrf_token']
         except KeyError:
@@ -137,6 +141,7 @@ class ServerEndpoint(MethodView):
             realm=realm,
             identity=identity,
             request_args=urlencode(args),
+            challenge=challenge,
             csrf_token=csrf_token)
 
     def post(self):
@@ -291,14 +296,34 @@ app.add_url_rule('/server', view_func=ServerEndpoint.as_view('server'))
 
 @app.route('/allow', methods=('POST',))
 def allow():
-    csrf_token = request.form['token']
-    if b32decode(csrf_token) != session.get('csrf_token'):
+    try:
+        orig_args_text = request.form['request_args']
+    except KeyError:
+        return direct_response(error='No original request args found')
+    orig_args = dict(urlparse.parse_qsl(orig_args_text))
+
+    csrf_token = request.form.get('token')
+    if csrf_token is None or b32decode(csrf_token) != session.get('csrf_token'):
         return indirect_response(orig_args, error="Someone forged the login form!!1!")
 
-    # TODO: verify that the viewer is the site owner or w/e
-
-    orig_args = dict(urlparse.parse_qsl(request.form['request_args']))
     if 'yes' not in request.form:
+        # Intentionally cancelled.
+        return indirect_response(orig_args, mode='cancel')
+
+    try:
+        challenge = request.form['challenge']
+        authkey = request.form['authkey']
+    except KeyError:
+        logging.warning("Someone tried to log in with no password :|")
+        return indirect_response(orig_args, mode='cancel')
+
+    # TODO: verify the challenge in some way?
+
+    msg = hmac.new(challenge, app.config['PASSWORD'], hashlib.sha256)
+    expected_authkey = b64encode(msg.digest())
+    if expected_authkey != authkey:
+        logging.debug("Oops, someone tried to log in with authkey %r but expected %r", authkey, expected_authkey)
+        logging.warning("Someone tried to log in with a bad password :|")
         return indirect_response(orig_args, mode='cancel')
 
     resp = {

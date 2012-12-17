@@ -11,8 +11,29 @@
 <form method="post" action="{{ url_for('allow') }}">
     <input type="hidden" name="token" value="{{ csrf_token }}">
     <input type="hidden" name="request_args" value="{{ request_args }}">
-    <p><input type="submit" name="yes" value="Allow"></p>
+    <input id="challenge" type="hidden" name="challenge" value="{{ challenge }}">
+    <input id="authkey" type="hidden" name="authkey">
+
+    <p><label>Password: <input id="password"></label></p>
+
+    <p id="allow"><input type="submit" name="yes" value="Allow"></p>
     <p><input type="submit" name="no" value="Cancel"></p>
 </form>
+
+<script src="{{ url_for('static', filename='hmac-sha256.js') }}"></script>
+<script>
+    document.getElementsByTagName('form').element(0).onsubmit = function (e) {
+        var challenge = document.getElementById('authkey').value;
+        var password = document.getElementById('password').value;
+
+        var hmac = CryptoJS.algo.HMAC.create(CryptoJS.algo.SHA256, challenge);
+        hmac.update(password)
+        var hash = hmac.finalize();
+
+        document.getElementById('authkey').value = hash;
+
+        return true;  // send the form
+    };
+</script>
 
 {% endblock %}
