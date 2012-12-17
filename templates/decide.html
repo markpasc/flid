@@ -21,15 +21,20 @@
 </form>
 
 <script src="{{ url_for('static', filename='hmac-sha256.js') }}"></script>
+<script src="{{ url_for('static', filename='enc-base64-min.js') }}"></script>
 <script>
     document.getElementsByTagName('form').item(0).onsubmit = function (e) {
-        var challenge = CryptoJS.enc.Base64.parse(document.getElementById('authkey').value);
-        var password = document.getElementById('password').value;
+        try {
+            var challenge = CryptoJS.enc.Base64.parse(document.getElementById('authkey').value);
+            var password = document.getElementById('password').value;
 
-        var hash = CryptoJS.HmacSHA256(password, challenge);
-        document.getElementById('authkey').value = hash;
-
-        return true;  // send the form
+            var hash = CryptoJS.HmacSHA256(password, challenge);
+            document.getElementById('authkey').value = hash;
+            return true;  // send the form
+        } catch(e) {
+            console.log(e);
+            return false;
+        }
     };
 </script>
 
