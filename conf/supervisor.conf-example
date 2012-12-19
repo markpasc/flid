@@ -1,0 +1,22 @@
+; Sample supervisor config file for flid.
+;
+; For more information on supervisor config files, please see:
+; http://supervisord.org/configuration.html
+;
+
+[program:flid]
+
+; Run gunicorn from flid's virtual environment, listening on port 11010, and
+; running the flid app (that is, `app` from the `flid.py` module).
+command=/home/username/flid/env/bin/gunicorn -b :11010 flid:app
+
+; Run in the directory where flid.py is.
+directory=/home/username/flid
+
+; Configure flid using the settings in flid.conf (in the same directory).
+environment=FLID_SETTINGS="flid.conf"
+
+user=nobody
+autostart=true
+autorestart=true
+redirect_stderr=True

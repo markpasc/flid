@@ -1,0 +1,25 @@
+#
+# Example flid.conf file
+#
+# Copy this to flid.conf where your flid.py is, and name it in the
+# FLID_SETTINGS environment variable when you run flid:
+#
+#    $ FLID_SETTINGS=flid.conf python flid.py
+#
+
+
+# Set this to False once your flid is working.
+DEBUG = True
+
+# Make up one of these with:  python -c "import os; print repr(os.urandom(24))"
+SECRET_KEY = 'v\xf6\xa3}f\xf8n\xd5\xd7\x8d\x1d\xac\x17ljN\x0e\x1f$\xde<d\xfc\x98'
+
+# The data source name for your database.
+DSN = 'dbname=flid user=flid host=localhost'
+
+# The host name for your flid site.
+SERVER_NAME = 'id.example.com'
+
+# The password to authenticate visitors with. Anyone with this password can
+# sign in to your OpenID accounts.
+PASSWORD = 'password'
