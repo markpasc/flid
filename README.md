@@ -19,14 +19,14 @@ Consider installing flid in [a virtual environment][] to isolate it from the res
 
     createdb flid
 
-3. Install the database table:
-
-    python initdb.py
-
-4. Customize a configuration file for your install:
+3. Customize a configuration file for your install:
 
     cp conf/flid.conf-example flid.conf
     vim flid.conf
+
+4. Install the database table:
+
+    FLID_SETTINGS=flid.conf python flid.py --init
 
 5. All done! Run `flid.py` or set up the flid app to run as you run Python apps.
 

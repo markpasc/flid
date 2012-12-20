@@ -1,4 +1,5 @@
 from array import array
+import argparse
 from base64 import b32decode, b32encode, b64decode, b64encode
 from datetime import datetime, timedelta
 import hashlib
@@ -6,6 +7,7 @@ import hmac
 import logging
 import os
 import pickle
+import sys
 from urllib import urlencode
 import urlparse
 
@@ -394,6 +396,38 @@ def hello_world():
     return render_template('about.html')
 
 
-if __name__ == '__main__':
+def initialize_database():
+    db_conn = psycopg2.connect(app.config['DSN'])
+    try:
+        cur = db_conn.cursor()
+        cur.execute("""CREATE TABLE openid_associations (
+            handle CHARACTER VARYING NOT NULL UNIQUE,
+            private BOOLEAN NOT NULL DEFAULT FALSE,
+            secret BYTEA NOT NULL,
+            assoc_type CHARACTER VARYING NOT NULL,
+            expires TIMESTAMP NOT NULL
+        )""")
+        db_conn.commit()
+
+        logging.info("Created database table openid_associations")
+    finally:
+        db_conn.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Provide single-serving OpenID service')
+    parser.add_argument('--init', action='store_true', help="initialize the database")
+    args = parser.parse_args()
+
     logging.basicConfig(level=logging.DEBUG)
+
+    if args.init:
+        initialize_database()
+        return 0
+
     app.run(debug=True)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
